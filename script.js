@@ -1,61 +1,3 @@
-// ==========================================
-// MOCK GOOGLE APPS SCRIPT FOR LOCAL DEV
-// ==========================================
-if (typeof google === 'undefined') {
-  console.warn("Local Environment Detected: Mocking google.script.run");
-  window.google = {
-    script: {
-      run: {
-        withSuccessHandler: function(callback) {
-          this.successHandler = callback;
-          return this;
-        },
-        withFailureHandler: function(callback) {
-          this.failureHandler = callback;
-          return this;
-        },
-        // Mock functions matching your backend
-        getStructuredData: function() {
-          const mockData = {
-            allowed: true, // เปลี่ยนเป็น false เพื่อทดสอบหน้า Access Denied
-            userEmail: "test.local@example.com",
-            treeData: [
-              {
-                title: "หมวดหมู่ทดสอบ 1",
-                subs: [
-                  {
-                    title: "ย่อย 1.1",
-                    topics: [
-                      {
-                        title: "หัวข้อ 1.1.1",
-                        tasks: [{ title: "เอกสาร A", link: "https://example.com" }]
-                      }
-                    ]
-                  }
-                ]
-              },
-              { title: "หมวดหมู่ทดสอบ 2 (ไม่มีข้อมูลย่อย)" }
-            ]
-          };
-          setTimeout(() => this.successHandler(mockData), 500); // ดีเลย์ 0.5 วิ จำลองการโหลด
-        },
-        getDataInputReports: function() {
-          setTimeout(() => this.successHandler([{ title: "ฟอร์มบันทึกข้อมูล A", link: "#" }]), 500);
-        },
-        getOrgDataReports: function() {
-          setTimeout(() => this.successHandler([{ title: "ข้อมูลองค์กร ปี 2567", link: "#" }]), 500);
-        },
-        getReportDataReports: function() {
-          setTimeout(() => this.successHandler([{ title: "สรุปรายงานเดือนนี้", link: "#" }]), 500);
-        }
-      }
-    }
-  };
-}
-// ==========================================
-// ORIGINAL APP LOGIC
-// ==========================================
-
 let rawData = [];
 let currentLevel = 1;
 let selectedMain = null;
@@ -67,6 +9,10 @@ let currentReportList = [];
 let userClickedLogin = false;
 
 window.onload = function() {
+  if (typeof CONFIG !== 'undefined' && CONFIG.APP_TITLE) {
+    document.title = CONFIG.APP_TITLE;
+  }
+
   google.script.run.withSuccessHandler(function(response) {
     authResponse = response;
     isDataLoaded = true;
@@ -85,6 +31,7 @@ function triggerLogin() {
     document.getElementById('loginBtn').disabled = true;
     return;
   }
+
   executeLogin();
 }
 
@@ -218,8 +165,8 @@ function renderMainPage() {
   currentLevel = 1;
   updateHeader("หมวดหมู่หลัก", false);
   
-  if(!rawData || rawData.length === 0) {
-    document.getElementById('contentArea').innerHTML = '<p class="text-center text-muted mt-5">ไม่มีข้อมูล</p>';
+  if (!rawData || rawData.length === 0) {
+    document.getElementById('contentArea').innerHTML = '<p class="text-center text-muted mt-5">ไม่พบข้อมูลหมวดหมู่</p>';
     return;
   }
 
