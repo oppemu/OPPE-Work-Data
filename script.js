@@ -13,14 +13,21 @@ window.onload = function() {
     document.title = CONFIG.APP_TITLE;
   }
 
-  google.script.run.withSuccessHandler(function(response) {
-    authResponse = response;
-    isDataLoaded = true;
-    
-    if (userClickedLogin) {
-      executeLogin();
-    }
-  }).getStructuredData();
+  // เรียกขอข้อมูลและสิทธิ์ผู้ใช้จาก Google Apps Script Backend
+  google.script.run
+    .withSuccessHandler(function(response) {
+      authResponse = response;
+      isDataLoaded = true;
+      
+      if (userClickedLogin) {
+        executeLogin();
+      }
+    })
+    .withFailureHandler(function(err) {
+      console.error("Fetch Data Error:", err);
+      alert("เกิดข้อผิดพลาดในการเชื่อมต่อกับระบบ Google Sheets");
+    })
+    .getStructuredData();
 };
 
 function triggerLogin() {
@@ -67,9 +74,9 @@ function showAccessDenied(email) {
       <h4 class="fw-bold text-danger mt-3 mb-2">ไม่มีสิทธิ์เข้าถึงระบบ</h4>
       <p class="text-muted mb-3">บัญชีของคุณไม่อยู่ในรายชื่อผู้มีสิทธิ์ใช้งานระบบนี้</p>
       <div class="p-2 bg-light rounded-3 mb-3 border fs-14 text-secondary">
-        <strong>อีเมลปัจจุบัน:</strong> ${email || 'ไม่พบบัญชีผู้ใช้'}
+        <strong>อีเมลปัจจุบัน:</strong> ${email || 'ไม่พบบัญชีผู้ใช้ / Anonymous'}
       </div>
-      <small class="text-muted">หากต้องการใช้งาน กรุณาติดต่อผู้ดูแลระบบเพื่อเพิ่มรายชื่อ</small>
+      <small class="text-muted">หากต้องการใช้งาน กรุณาติดต่อผู้ดูแลระบบเพื่อเพิ่มรายชื่อในชีต 'ชื่อ'</small>
     </div>
   `;
   document.getElementById('contentArea').innerHTML = html;
@@ -81,11 +88,11 @@ function switchTab(tabName) {
 
   if (tabName === 'overview') {
     document.getElementById('menuOverview').classList.add('active');
-    document.getElementById('headerSubtitle').innerText = "ศูนย์รวมการจัดการเอกสาร ";
+    document.getElementById('headerSubtitle').innerText = "ศูนย์รวมการจัดการเอกสาร";
     renderMainPage();
   } else if (tabName === 'datainput') {
     document.getElementById('menuDataInput').classList.add('active');
-    updateHeader("บันทึกข้อมูล ", false);
+    updateHeader("บันทึกข้อมูล ISO", false);
     document.getElementById('headerSubtitle').innerText = "";
     loadDataList('getDataInputReports');
   } else if (tabName === 'orgdata') {
