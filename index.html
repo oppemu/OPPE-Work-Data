@@ -48,14 +48,18 @@
             <i class="material-icons" style="font-size:32px;">lock_open</i>
           </div>
           <div>
-            <h5 class="m-0 fw-bold">สำหรับเจ้าหน้าที่ </h5>
-            <small class="opacity-75">เข้าสู่ระบบเพื่อจัดการข้อมูล อัปเดตเอกสาร และสรุปผลการดำเนินงาน</small>
+            <h5 class="m-0 fw-bold">สำหรับเจ้าหน้าที่</h5>
+            <small class="opacity-75">กรอกอีเมลเพื่อตรวจสอบสิทธิ์การเข้าสู่ระบบ</small>
           </div>
         </div>
-        <button class="btn-enter-system" id="loginBtn" onclick="triggerLogin()">
-          <span id="btnText">เข้าสู่ระบบ &rarr;</span>
-          <span id="btnSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
-        </button>
+
+        <div class="login-form-group">
+          <input type="email" id="emailInput" class="login-email-input" placeholder="กรอกอีเมลของคุณ (เช่น name.sur@mahidol.ac.th)" onkeydown="if(event.key==='Enter') triggerLogin()">
+          <button class="btn-enter-system" id="loginBtn" onclick="triggerLogin()">
+            <span id="btnText">เข้าสู่ระบบ &rarr;</span>
+            <span id="btnSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
