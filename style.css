@@ -28,7 +28,7 @@ body {
 }
 
 .hero-title {
-  font-size: 36px;
+  font-size: 34px;
   font-weight: 700;
   color: var(--accent-yellow);
   margin-bottom: 12px;
@@ -91,6 +91,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
 }
 
 #mainSystem {
@@ -199,7 +200,7 @@ body {
 .app-card-horizontal {
   background: #ffffff;
   border-radius: 10px;
-  padding: 10px 16px;
+  padding: 12px 16px;
   display: flex;
   flex-direction: row;
   align-items: center;
