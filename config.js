@@ -1,10 +1,10 @@
 const CONFIG = {
-  APP_TITLE: "OPPE Work data - กองกายภาพและสิ่งแวดล้อม",
-  ENABLE_LOCAL_MOCK: true,
+  APP_TITLE: "OPPE Work Data - กองกายภาพและสิ่งแวดล้อม",
+  ENABLE_LOCAL_MOCK: true, // ตั้งเป็น true เมื่อรันใน VS Code | บน GAS ระบบจะสลับไปใช้ Code.gs อัตโนมัติ
   MOCK_DELAY_MS: 400
 };
 
-// จำลอง google.script.run เมื่อทดสอบระบบบน VS Code
+// จำลองระบบ google.script.run เมื่อทดสอบในเครื่อง local (VS Code)
 if (typeof google === 'undefined' && CONFIG.ENABLE_LOCAL_MOCK) {
   window.google = {
     script: {
@@ -20,19 +20,19 @@ if (typeof google === 'undefined' && CONFIG.ENABLE_LOCAL_MOCK) {
         getStructuredData: function() {
           const mockData = {
             allowed: true,
-            userEmail: "officer@mahidol.ac.th",
+            userEmail: "test.user@mahidol.ac.th",
             treeData: [
               {
                 title: "1. ด้านการจัดการสิ่งแวดล้อม",
                 subs: [
                   {
-                    title: "1.1 มาตรฐานสำนักงานสีเขียว (Green Office)",
+                    title: "1.1 สำนักงานสีเขียว (Green Office)",
                     topics: [
                       {
                         title: "หมวดที่ 1 การบริหารจัดการองค์การ",
                         tasks: [
                           { title: "นโยบายสิ่งแวดล้อม", link: "https://google.com" },
-                          { title: "คณะทำงานด้านสิ่งแวดล้อม", link: "https://google.com" }
+                          { title: "คู่มือการดำเนินงาน", link: "https://google.com" }
                         ]
                       }
                     ]
@@ -43,7 +43,7 @@ if (typeof google === 'undefined' && CONFIG.ENABLE_LOCAL_MOCK) {
                 title: "2. ด้านพลังงานและทรัพยากร",
                 subs: [
                   {
-                    title: "2.1 ข้อมูลการใช้ไฟฟ้าและน้ำประปา",
+                    title: "2.1 การใช้ไฟฟ้าและน้ำประปา",
                     topics: []
                   }
                 ]
@@ -54,20 +54,20 @@ if (typeof google === 'undefined' && CONFIG.ENABLE_LOCAL_MOCK) {
         },
         getDataInputReports: function() {
           setTimeout(() => this.successCallback([
-            { title: "แบบบันทึกการใช้ไฟฟ้าประจำเดือน", link: "#" },
-            { title: "แบบบันทึกการใช้น้ำประปาประจำเดือน", link: "#" }
+            { title: "แบบบันทึกข้อมูลการใช้พลังงาน ISO 14001", link: "#" },
+            { title: "แบบบันทึกการจัดการของเสียและขยะ", link: "#" }
           ]), CONFIG.MOCK_DELAY_MS);
         },
         getOrgDataReports: function() {
           setTimeout(() => this.successCallback([
-            { title: "รายชื่อบุคลากรและโครงสร้างองค์กร", link: "#" },
-            { title: "แผนผังอาคารและพื้นที่การดูแล", link: "#" }
+            { title: "โครงสร้างบุคลากรกองกายภาพและสิ่งแวดล้อม", link: "#" },
+            { title: "ผังผืนดินและพื้นที่รับผิดชอบ", link: "#" }
           ]), CONFIG.MOCK_DELAY_MS);
         },
         getReportDataReports: function() {
           setTimeout(() => this.successCallback([
-            { title: "รายงานสรุปปริมาณก๊าซเรือนกระจก (GHG Report)", link: "#" },
-            { title: "รายงานสรุปผลการประหยัดพลังงานรายไตรมาส", link: "#" }
+            { title: "รายงานสรุปการปลดปล่อยก๊าซเรือนกระจกประจำปี", link: "#" },
+            { title: "รายงานผลการดำเนินงาน Green University", link: "#" }
           ]), CONFIG.MOCK_DELAY_MS);
         }
       }
