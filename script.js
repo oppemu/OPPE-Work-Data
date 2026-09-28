@@ -6,27 +6,43 @@ let selectedTopic = null;
 let currentReportList = [];
 let userEmail = "";
 
-// ฟังก์ชันเรียก API ไปยัง Google Apps Script พร้อมระบบตัดเวลา (Timeout)
-async function callApi(action, email) {
-  try {
-    const url = `${CONFIG.API_URL}?action=${action}&email=${encodeURIComponent(email)}`;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // ตั้งเวลา Timeout 15 วินาที
+// ฟังก์ชันเรียก API โดยใช้เทคนิค JSONP แก้ปัญหา CORS
+function callApi(action, email) {
+  return new Promise((resolve, reject) => {
+    const callbackName = 'jsonp_cb_' + Math.round(1000000 * Math.random());
+    
+    // ตั้งเวลา Timeout 15 วินาที
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error('การเชื่อมต่อใช้เวลานานเกินไป (Timeout)'));
+    }, 15000);
 
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
-
-    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-    const data = await response.json();
-    if (data.error) throw new Error(data.error);
-    return data;
-  } catch (error) {
-    console.error(`Error calling action [${action}]:`, error);
-    if (error.name === 'AbortError') {
-      throw new Error('การเชื่อมต่อใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง');
+    function cleanup() {
+      clearTimeout(timeoutId);
+      if (window[callbackName]) delete window[callbackName];
+      const scriptEl = document.getElementById(callbackName);
+      if (scriptEl) scriptEl.remove();
     }
-    throw new Error('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ (' + error.message + ')');
-  }
+
+    window[callbackName] = function(data) {
+      cleanup();
+      if (data && data.error) {
+        reject(new Error(data.error));
+      } else {
+        resolve(data);
+      }
+    };
+
+    const script = document.createElement('script');
+    script.id = callbackName;
+    script.src = `${CONFIG.API_URL}?action=${action}&email=${encodeURIComponent(email)}&callback=${callbackName}`;
+    script.onerror = function() {
+      cleanup();
+      reject(new Error('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Google Apps Script ได้'));
+    };
+
+    document.body.appendChild(script);
+  });
 }
 
 async function triggerLogin() {
@@ -40,7 +56,6 @@ async function triggerLogin() {
 
   userEmail = emailValue.toLowerCase();
 
-  // ปรับสถานะปุ่ม
   const btnText = document.getElementById('btnText');
   const btnSpinner = document.getElementById('btnSpinner');
   const loginBtn = document.getElementById('loginBtn');
@@ -63,7 +78,7 @@ async function triggerLogin() {
     rawData = authResponse.treeData || [];
     switchTab('overview');
   } catch (err) {
-    alert(err.message + "\n\nหมายเหตุ: กรุณาตรวจสอบการตั้งค่า Deploy ของ Apps Script ให้เป็น 'Anyone'");
+    alert("เกิดข้อผิดพลาดในการเข้าสู่ระบบ: " + err.message);
   } finally {
     if (btnText) btnText.innerText = "เข้าสู่ระบบ \u2192";
     if (btnSpinner) btnSpinner.classList.add('d-none');
