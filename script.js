@@ -1,87 +1,98 @@
+let currentUserEmail = "";
+let userPermissions = null;
 let rawData = [];
 let currentLevel = 1;
 let selectedMain = null;
 let selectedSub = null;
 let selectedTopic = null;
-let currentUserEmail = "";
 let currentReportList = [];
 
-// โหลดข้อมูลอีเมลที่เคยบันทึกไว้ใน LocalStorage (ถ้ามี)
-window.addEventListener('DOMContentLoaded', () => {
-  const savedEmail = localStorage.getItem('oppe_user_email');
-  if (savedEmail) {
-    document.getElementById('userEmailInput').value = savedEmail;
-  }
-});
-
-/**
- * ฟังก์ชันช่วยเรียกใช้งาน API ผ่าน JSONP (แก้ปัญหา CORS เมื่อรันบน GitHub Pages)
- */
-function callApi(action, params = {}) {
+// ฟังก์ชันเรียก API ด้วย JSONP เพื่อป้องกันปัญหา CORS
+function fetchJSONP(action, params = {}) {
   return new Promise((resolve, reject) => {
-    const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-    
+    const callbackName = 'jsonp_cb_' + Math.round(100000 * Math.random());
     window[callbackName] = function(data) {
       delete window[callbackName];
       document.body.removeChild(script);
       resolve(data);
     };
 
-    const url = new URL(CONFIG.API_URL);
-    url.searchParams.set('action', action);
-    url.searchParams.set('callback', callbackName);
-    
-    Object.keys(params).forEach(key => {
-      if (params[key]) url.searchParams.set(key, params[key]);
-    });
+    let url = `${API_URL}?action=${action}&callback=${callbackName}`;
+    for (let key in params) {
+      url += `&${key}=${encodeURIComponent(params[key])}`;
+    }
 
     const script = document.createElement('script');
-    script.src = url.toString();
-    script.onerror = function() {
+    script.src = url;
+    script.onerror = () => {
       delete window[callbackName];
       document.body.removeChild(script);
-      reject(new Error('ไม่สามารถเชื่อมต่อกับเครื่องข่าย API ได้'));
+      reject(new Error("เกิดข้อผิดพลาดในการเชื่อมต่อระบบ API"));
     };
-    
     document.body.appendChild(script);
   });
 }
 
-/**
- * กดปุ่มเข้าสู่ระบบ
- */
 async function triggerLogin() {
-  const emailInput = document.getElementById('userEmailInput').value.trim();
-  currentUserEmail = emailInput || CONFIG.DEFAULT_EMAIL;
-
-  if (emailInput) {
-    localStorage.setItem('oppe_user_email', emailInput);
+  const emailInput = document.getElementById('loginEmail').value.trim();
+  if (!emailInput) {
+    alert("กรุณากรอกอีเมลของคุณก่อนเข้าสู่ระบบ");
+    return;
   }
 
+  currentUserEmail = emailInput.toLowerCase();
+  
   document.getElementById('btnText').innerText = "กำลังตรวจสอบ...";
   document.getElementById('btnSpinner').classList.remove('d-none');
   document.getElementById('loginBtn').disabled = true;
 
   try {
-    const response = await callApi('getStructuredData', { email: currentUserEmail });
+    const res = await fetchJSONP('checkUserAccess', { email: currentUserEmail });
     
-    if (!response || !response.allowed) {
-      showAccessDenied(response ? response.userEmail : currentUserEmail);
+    document.getElementById('btnText').innerText = "เข้าสู่ระบบ →";
+    document.getElementById('btnSpinner').classList.add('d-none');
+    document.getElementById('loginBtn').disabled = false;
+
+    if (!res || !res.allowed) {
+      showAccessDenied(currentUserEmail);
       return;
     }
 
-    document.getElementById('landingPage').style.display = 'none';
-    document.getElementById('mainSystem').style.display = 'block';
+    userPermissions = res;
+    executeLogin();
 
-    rawData = response.treeData || [];
-    switchTab('overview');
   } catch (err) {
-    alert("เกิดข้อผิดพลาดในการเชื่อมต่อระบบ: " + err.message);
-  } finally {
-    document.getElementById('btnText').innerHTML = "เข้าสู่ระบบ &rarr;";
+    alert(err.message);
+    document.getElementById('btnText').innerText = "เข้าสู่ระบบ →";
     document.getElementById('btnSpinner').classList.add('d-none');
     document.getElementById('loginBtn').disabled = false;
   }
+}
+
+function executeLogin() {
+  document.getElementById('landingPage').style.display = 'none';
+  document.getElementById('mainSystem').style.display = 'block';
+  document.getElementById('userRoleBadge').innerText = userPermissions.role || "เจ้าหน้าที่";
+
+  // ใช้หลักการ Show If ควบคุมเมนูSidebar
+  const visibleMenus = userPermissions.visibleMenus || [];
+  const menuMap = {
+    'overview': 'menuOverview',
+    'carpar': 'menuCarPar',
+    'kpi': 'menuKpi',
+    'datainput': 'menuDataInput',
+    'orgdata': 'menuOrgData',
+    'report': 'menuReport'
+  };
+
+  for (let key in menuMap) {
+    const elem = document.getElementById(menuMap[key]);
+    if (elem) {
+      elem.style.display = visibleMenus.includes(key) ? 'flex' : 'none';
+    }
+  }
+
+  switchTab('overview');
 }
 
 function goToLandingPage() {
@@ -99,109 +110,65 @@ function showAccessDenied(email) {
       <h4 class="fw-bold text-danger mt-3 mb-2">ไม่มีสิทธิ์เข้าถึงระบบ</h4>
       <p class="text-muted mb-3">บัญชีของคุณไม่อยู่ในรายชื่อผู้มีสิทธิ์ใช้งานระบบนี้</p>
       <div class="p-2 bg-light rounded-3 mb-3 border fs-14 text-secondary">
-        <strong>อีเมลปัจจุบัน:</strong> ${email || 'ไม่พบบัญชีผู้ใช้'}
+        <strong>อีเมลปัจจุบัน:</strong> ${email}
       </div>
-      <button class="btn btn-secondary btn-sm mb-2" onclick="goToLandingPage()">กลับไปเปลี่ยนอีเมล</button>
-      <div><small class="text-muted">หากต้องการใช้งาน กรุณาติดต่อผู้ดูแลระบบเพื่อเพิ่มรายชื่อ</small></div>
+      <button class="btn btn-outline-secondary btn-sm" onclick="goToLandingPage()">กลับไปลองใหม่อีกครั้ง</button>
     </div>
   `;
   document.getElementById('contentArea').innerHTML = html;
 }
 
-function switchTab(tabName) {
+async function switchTab(tabName) {
   document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
   document.getElementById('searchWrapper').style.display = 'none';
 
   if (tabName === 'overview') {
     document.getElementById('menuOverview').classList.add('active');
     document.getElementById('headerSubtitle').innerText = "ศูนย์รวมการจัดการเอกสาร";
-    renderMainPage();
+    loadOverviewData();
   } else if (tabName === 'datainput') {
     document.getElementById('menuDataInput').classList.add('active');
-    updateHeader("บันทึกข้อมูล", false);
-    document.getElementById('headerSubtitle').innerText = "";
+    updateHeader("บันทึกข้อมูล ISO", false);
     loadDataList('getDataInputReports');
   } else if (tabName === 'orgdata') {
     document.getElementById('menuOrgData').classList.add('active');
     updateHeader("ข้อมูลหน่วยงาน", false);
-    document.getElementById('headerSubtitle').innerText = "";
     loadDataList('getOrgDataReports');
   } else if (tabName === 'report') {
     document.getElementById('menuReport').classList.add('active');
     updateHeader("รายงาน", false);
-    document.getElementById('headerSubtitle').innerText = "";
     loadDataList('getReportDataReports');
   }
 }
 
-async function loadDataList(actionName) {
-  document.getElementById('contentArea').innerHTML = `
-    <div class="text-center py-5">
-      <div class="spinner-border text-primary" role="status"></div>
-      <p class="mt-3 text-muted">กำลังดึงข้อมูล...</p>
-    </div>
-  `;
-
+async function loadOverviewData() {
+  showLoading();
   try {
-    const reports = await callApi(actionName, { email: currentUserEmail });
+    const res = await fetchJSONP('getStructuredData', { email: currentUserEmail });
+    rawData = res.treeData || [];
+    renderMainPage();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+async function loadDataList(actionName) {
+  showLoading();
+  try {
+    const reports = await fetchJSONP(actionName, { email: currentUserEmail });
     currentReportList = reports || [];
     document.getElementById('searchWrapper').style.display = 'block';
     document.getElementById('searchInput').value = '';
     renderSheetView(currentReportList);
   } catch (err) {
-    document.getElementById('contentArea').innerHTML = `
-      <div class="alert alert-danger text-center">
-        เกิดข้อผิดพลาดในการโหลดข้อมูล: ${err.message}
-      </div>
-    `;
+    showError(err.message);
   }
-}
-
-function renderSheetView(list) {
-  if (!list || list.length === 0) {
-    document.getElementById('contentArea').innerHTML = `
-      <div class="text-center py-5 text-muted">
-        <i class="material-icons fs-1">find_in_page</i>
-        <p class="mt-2">ไม่พบรายการข้อมูลที่ค้นหา หรือคุณไม่มีสิทธิ์เข้าถึงรายการในส่วนนี้</p>
-      </div>
-    `;
-    return;
-  }
-
-  let html = '<div class="app-horizontal-list">';
-  list.forEach(item => {
-    html += `
-      <div class="app-card-horizontal" onclick="openLink('${item.link}')">
-        <div class="d-flex align-items-center gap-3">
-          <div class="icon-box bg-report">
-            <i class="material-icons text-primary">assignment</i>
-          </div>
-          <div class="fw-medium fs-14 text-dark">${item.title}</div>
-        </div>
-        <i class="material-icons text-muted fs-5">chevron_right</i>
-      </div>
-    `;
-  });
-  html += '</div>';
-
-  document.getElementById('contentArea').innerHTML = html;
-}
-
-function filterReports() {
-  let query = document.getElementById('searchInput').value.toLowerCase().trim();
-  let filtered = currentReportList.filter(item => item.title.toLowerCase().includes(query));
-  renderSheetView(filtered);
 }
 
 function renderMainPage() {
   currentLevel = 1;
   updateHeader("หมวดหมู่หลัก", false);
   
-  if (!rawData || rawData.length === 0) {
-    document.getElementById('contentArea').innerHTML = '<div class="text-center py-5 text-muted">ไม่พบข้อมูลหมวดหมู่</div>';
-    return;
-  }
-
   let html = '<div class="app-grid">';
   rawData.forEach((main, index) => {
     html += `
@@ -289,6 +256,42 @@ function selectTopic(topicIdx) {
   document.getElementById('contentArea').innerHTML = html;
 }
 
+function renderSheetView(list) {
+  if (!list || list.length === 0) {
+    document.getElementById('contentArea').innerHTML = `
+      <div class="text-center py-5 text-muted">
+        <i class="material-icons fs-1">find_in_page</i>
+        <p class="mt-2">ไม่พบรายการข้อมูลที่คุณมีสิทธิ์เข้าถึง</p>
+      </div>
+    `;
+    return;
+  }
+
+  let html = '<div class="app-horizontal-list">';
+  list.forEach(item => {
+    html += `
+      <div class="app-card-horizontal" onclick="openLink('${item.link}')">
+        <div class="d-flex align-items-center gap-3">
+          <div class="icon-box bg-report">
+            <i class="material-icons text-primary">assignment</i>
+          </div>
+          <div class="fw-medium fs-14 text-dark">${item.title}</div>
+        </div>
+        <i class="material-icons text-muted fs-5">chevron_right</i>
+      </div>
+    `;
+  });
+  html += '</div>';
+
+  document.getElementById('contentArea').innerHTML = html;
+}
+
+function filterReports() {
+  let query = document.getElementById('searchInput').value.toLowerCase().trim();
+  let filtered = currentReportList.filter(item => item.title.toLowerCase().includes(query));
+  renderSheetView(filtered);
+}
+
 function openLink(url) {
   if (url && url !== "") {
     window.open(url, '_blank');
@@ -306,4 +309,19 @@ function goBack() {
 function updateHeader(title, showBack) {
   document.getElementById('headerTitle').innerText = title;
   document.getElementById('backBtn').style.display = showBack ? 'inline-flex' : 'none';
+}
+
+function showLoading() {
+  document.getElementById('contentArea').innerHTML = `
+    <div class="text-center py-5">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-3 text-muted">กำลังโหลดข้อมูล...</p>
+    </div>
+  `;
+}
+
+function showError(msg) {
+  document.getElementById('contentArea').innerHTML = `
+    <div class="alert alert-danger text-center my-4">${msg}</div>
+  `;
 }
