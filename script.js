@@ -1,3 +1,8 @@
+const API_URL = "https://script.google.com/macros/s/AKfycbwFyTQmfapDha9xke3P-EYUwmBDddvpjcRo1lLheeB-a7myA8cRs7IbSNvjejjXp2ZiKg/exec";
+
+let currentUserEmail = "";
+let userPermissions = null;
+// ... (โค้ดเดิมส่วนที่เหลือทั้งหมด)
 let currentUserEmail = "";
 let userPermissions = null;
 let rawData = [];
