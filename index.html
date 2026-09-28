@@ -1,17 +1,16 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OPPE Work Data - กองกายภาพและสิ่งแวดล้อม</title>
+  <title>OPPE Work data - กองกายภาพและสิ่งแวดล้อม</title>
   
+  <!-- External CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- โหลด style.css (รองรับทั้ง VS Code และ GAS) -->
-  <?!= include('style.css'); ?>
+  <!-- Custom CSS -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -19,8 +18,8 @@
   <!-- PAGE 1: LANDING PAGE -->
   <div id="landingPage">
     <div class="hero-banner">
-      <h1 class="hero-title">ระบบข้อมูลการทำงาน OPPE<br>กองกายภาพและสิ่งแวดล้อม</h1>
-      <p class="text-light opacity-75">ติดตามผลการดำเนินงาน จัดเก็บเอกสาร และรายงานข้อมูลระบบมาตรฐาน</p>
+      <h1 class="hero-title">ระบบมาตรฐาน<br>กองกายภาพและสิ่งแวดล้อม</h1>
+      <p class="text-light opacity-75">ติดตามผลการดำเนินงานด้านคุณภาพและสิ่งแวดล้อม <br>อัปเดตข้อมูลแบบเรียลไทม์ผ่าน Google Sheets</p>
     </div>
 
     <div class="stat-cards-container">
@@ -37,8 +36,8 @@
         <div class="stat-value">--</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">สถานะการดำเนินงาน</div>
-        <div class="stat-value text-success">ปกติ</div>
+        <div class="stat-label">ลดลงจากปีที่แล้ว</div>
+        <div class="stat-value">--</div>
       </div>
     </div>
 
@@ -49,8 +48,8 @@
             <i class="material-icons" style="font-size:32px;">lock_open</i>
           </div>
           <div>
-            <h5 class="m-0 fw-bold">สำหรับเจ้าหน้าที่</h5>
-            <small class="opacity-75">เข้าสู่ระบบเพื่อจัดการเอกสาร บันทึกข้อมูล ISO และสรุปรายงาน</small>
+            <h5 class="m-0 fw-bold">สำหรับเจ้าหน้าที่ </h5>
+            <small class="opacity-75">เข้าสู่ระบบเพื่อจัดการข้อมูล อัปเดตเอกสาร และสรุปผลการดำเนินงาน</small>
           </div>
         </div>
         <button class="btn-enter-system" id="loginBtn" onclick="triggerLogin()">
@@ -75,18 +74,12 @@
       </div>
 
       <ul class="sidebar-menu">
-        <li class="sidebar-item active" id="menuOverview" onclick="switchTab('overview')">
-          <i class="material-icons">dashboard</i> ภาพรวมหมวดหมู่ระบบ
-        </li>
-        <li class="sidebar-item" id="menuDataInput" onclick="switchTab('datainput')">
-          <i class="material-icons">edit_note</i> บันทึกข้อมูล ISO
-        </li>
-        <li class="sidebar-item" id="menuOrgData" onclick="switchTab('orgdata')">
-          <i class="material-icons">business</i> ข้อมูลหน่วยงาน
-        </li>
-        <li class="sidebar-item" id="menuReport" onclick="switchTab('report')">
-          <i class="material-icons">description</i> รายงาน
-        </li>
+        <li class="sidebar-item active" id="menuOverview" onclick="switchTab('overview')"><i class="material-icons">dashboard</i> ภาพรวมหมวดหมู่ระบบ</li>
+        <li class="sidebar-item" id="menuCarPar" onclick="switchTab('carpar')"><i class="material-icons">assignment_late</i> ติดตามสถานะ </li>
+        <li class="sidebar-item" id="menuKpi" onclick="switchTab('kpi')"><i class="material-icons">bar_chart</i> ตัวชี้วัด </li>
+        <li class="sidebar-item" id="menuDataInput" onclick="switchTab('datainput')"><i class="material-icons">edit_note</i> บันทึกข้อมูลรายงาน</li>
+        <li class="sidebar-item" id="menuOrgData" onclick="switchTab('orgdata')"><i class="material-icons">business</i> ข้อมูลหน่วยงาน</li>
+        <li class="sidebar-item" id="menuReport" onclick="switchTab('report')"><i class="material-icons">description</i> สรุปรายงาน</li>
       </ul>
     </div>
 
@@ -94,12 +87,12 @@
       <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h4 class="fw-bold mb-1" id="headerTitle">หมวดหมู่หลัก</h4>
-          <p class="text-muted fs-14 mb-0" id="headerSubtitle">ศูนย์รวมการจัดการเอกสาร</p>
+          <p class="text-muted fs-14 mb-0" id="headerSubtitle">ศูนย์รวมการจัดการเอกสาร </p>
         </div>
         
         <div class="d-flex align-items-center gap-3">
           <div class="search-box-wrapper" id="searchWrapper" style="display:none;">
-            <input type="text" class="form-control" id="searchInput" placeholder="ค้นหารายการ..." onkeyup="filterReports()">
+            <input type="text" class="form-control" id="searchInput" placeholder="ค้นหารายงาน..." onkeyup="filterReports()">
             <i class="material-icons search-icon">search</i>
           </div>
 
@@ -118,9 +111,7 @@
     </div>
   </div>
 
-  <!-- โหลดสคริปต์ (รองรับทั้ง VS Code และ GAS) -->
-  <?!= include('config.js'); ?>
-  <?!= include('script.js'); ?>
+  <!-- Custom Scripts -->
   <script src="config.js"></script>
   <script src="script.js"></script>
 </body>
