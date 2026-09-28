@@ -8,26 +8,30 @@ let authResponse = null;
 let currentReportList = [];
 let userClickedLogin = false;
 
-window.onload = function() {
-  if (typeof CONFIG !== 'undefined' && CONFIG.APP_TITLE) {
-    document.title = CONFIG.APP_TITLE;
+// ฟังก์ชันเรียก API จาก Google Apps Script Web App
+async function callApi(action) {
+  try {
+    const response = await fetch(`${CONFIG.API_URL}?action=${action}`);
+    if (!response.ok) throw new Error('การเชื่อมต่อเครือข่ายล้มเหลว');
+    return await response.json();
+  } catch (error) {
+    console.error(`Error calling action [${action}]:`, error);
+    throw error;
   }
+}
 
-  // เรียกขอข้อมูลและสิทธิ์ผู้ใช้จาก Google Apps Script Backend
-  google.script.run
-    .withSuccessHandler(function(response) {
+window.onload = function() {
+  callApi('getStructuredData')
+    .then(response => {
       authResponse = response;
       isDataLoaded = true;
-      
       if (userClickedLogin) {
         executeLogin();
       }
     })
-    .withFailureHandler(function(err) {
-      console.error("Fetch Data Error:", err);
-      alert("เกิดข้อผิดพลาดในการเชื่อมต่อกับระบบ Google Sheets");
-    })
-    .getStructuredData();
+    .catch(err => {
+      console.error("Failed to load initial data", err);
+    });
 };
 
 function triggerLogin() {
@@ -38,7 +42,6 @@ function triggerLogin() {
     document.getElementById('loginBtn').disabled = true;
     return;
   }
-
   executeLogin();
 }
 
@@ -51,17 +54,13 @@ function executeLogin() {
   document.getElementById('landingPage').style.display = 'none';
   document.getElementById('mainSystem').style.display = 'block';
 
-  rawData = authResponse.treeData || [];
+  rawData = authResponse.treeData;
   switchTab('overview');
 }
 
 function goToLandingPage() {
   document.getElementById('mainSystem').style.display = 'none';
   document.getElementById('landingPage').style.display = 'block';
-  userClickedLogin = false;
-  document.getElementById('btnText').innerText = "เข้าสู่ระบบ →";
-  document.getElementById('btnSpinner').classList.add('d-none');
-  document.getElementById('loginBtn').disabled = false;
 }
 
 function showAccessDenied(email) {
@@ -74,9 +73,9 @@ function showAccessDenied(email) {
       <h4 class="fw-bold text-danger mt-3 mb-2">ไม่มีสิทธิ์เข้าถึงระบบ</h4>
       <p class="text-muted mb-3">บัญชีของคุณไม่อยู่ในรายชื่อผู้มีสิทธิ์ใช้งานระบบนี้</p>
       <div class="p-2 bg-light rounded-3 mb-3 border fs-14 text-secondary">
-        <strong>อีเมลปัจจุบัน:</strong> ${email || 'ไม่พบบัญชีผู้ใช้ / Anonymous'}
+        <strong>อีเมลปัจจุบัน:</strong> ${email || 'ไม่พบบัญชีผู้ใช้'}
       </div>
-      <small class="text-muted">หากต้องการใช้งาน กรุณาติดต่อผู้ดูแลระบบเพื่อเพิ่มรายชื่อในชีต 'ชื่อ'</small>
+      <small class="text-muted">หากต้องการใช้งาน กรุณาติดต่อผู้ดูแลระบบเพื่อเพิ่มรายชื่อ</small>
     </div>
   `;
   document.getElementById('contentArea').innerHTML = html;
@@ -88,11 +87,11 @@ function switchTab(tabName) {
 
   if (tabName === 'overview') {
     document.getElementById('menuOverview').classList.add('active');
-    document.getElementById('headerSubtitle').innerText = "ศูนย์รวมการจัดการเอกสาร";
+    document.getElementById('headerSubtitle').innerText = "ศูนย์รวมการจัดการเอกสาร ";
     renderMainPage();
   } else if (tabName === 'datainput') {
     document.getElementById('menuDataInput').classList.add('active');
-    updateHeader("บันทึกข้อมูล ISO", false);
+    updateHeader("บันทึกข้อมูล ", false);
     document.getElementById('headerSubtitle').innerText = "";
     loadDataList('getDataInputReports');
   } else if (tabName === 'orgdata') {
@@ -116,20 +115,20 @@ function loadDataList(serverMethodName) {
     </div>
   `;
 
-  google.script.run
-    .withSuccessHandler(function(reports) {
+  callApi(serverMethodName)
+    .then(reports => {
       currentReportList = reports;
       document.getElementById('searchWrapper').style.display = 'block';
       document.getElementById('searchInput').value = '';
       renderSheetView(currentReportList);
     })
-    .withFailureHandler(function(err) {
+    .catch(err => {
       document.getElementById('contentArea').innerHTML = `
         <div class="alert alert-danger text-center">
           เกิดข้อผิดพลาดในการโหลดข้อมูล: ${err.message}
         </div>
       `;
-    })[serverMethodName]();
+    });
 }
 
 function renderSheetView(list) {
@@ -172,11 +171,6 @@ function renderMainPage() {
   currentLevel = 1;
   updateHeader("หมวดหมู่หลัก", false);
   
-  if (!rawData || rawData.length === 0) {
-    document.getElementById('contentArea').innerHTML = '<p class="text-center text-muted mt-5">ไม่พบข้อมูลหมวดหมู่</p>';
-    return;
-  }
-
   let html = '<div class="app-grid">';
   rawData.forEach((main, index) => {
     html += `
