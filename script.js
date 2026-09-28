@@ -3,16 +3,15 @@ let currentLevel = 1;
 let selectedMain = null;
 let selectedSub = null;
 let selectedTopic = null;
-let isDataLoaded = false;
-let authResponse = null;
 let currentReportList = [];
-let userClickedLogin = false;
+let userEmail = "";
 
-// ฟังก์ชันเรียก API จาก Google Apps Script Web App
-async function callApi(action) {
+// ฟังก์ชันเรียก API ไปยัง Google Apps Script พร้อมแนบ Email
+async function callApi(action, email) {
   try {
-    const response = await fetch(`${CONFIG.API_URL}?action=${action}`);
-    if (!response.ok) throw new Error('การเชื่อมต่อเครือข่ายล้มเหลว');
+    const url = `${CONFIG.API_URL}?action=${action}&email=${encodeURIComponent(email)}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('การเชื่อมต่อกับเซิร์ฟเวอร์ล้มเหลว');
     return await response.json();
   } catch (error) {
     console.error(`Error calling action [${action}]:`, error);
@@ -20,42 +19,42 @@ async function callApi(action) {
   }
 }
 
-window.onload = function() {
-  callApi('getStructuredData')
-    .then(response => {
-      authResponse = response;
-      isDataLoaded = true;
-      if (userClickedLogin) {
-        executeLogin();
-      }
-    })
-    .catch(err => {
-      console.error("Failed to load initial data", err);
-    });
-};
+async function triggerLogin() {
+  const inputEl = document.getElementById('emailInput');
+  const emailValue = inputEl ? inputEl.value.trim() : "";
 
-function triggerLogin() {
-  userClickedLogin = true;
-  if (!isDataLoaded) {
-    document.getElementById('btnText').innerText = "กำลังเข้าสู่ระบบ...";
-    document.getElementById('btnSpinner').classList.remove('d-none');
-    document.getElementById('loginBtn').disabled = true;
-    return;
-  }
-  executeLogin();
-}
-
-function executeLogin() {
-  if (!authResponse || !authResponse.allowed) {
-    showAccessDenied(authResponse ? authResponse.userEmail : "");
+  if (!emailValue) {
+    alert("กรุณากรอกอีเมลก่อนเข้าสู่ระบบ");
     return;
   }
 
-  document.getElementById('landingPage').style.display = 'none';
-  document.getElementById('mainSystem').style.display = 'block';
+  userEmail = emailValue.toLowerCase();
 
-  rawData = authResponse.treeData;
-  switchTab('overview');
+  // ปรับสถานะปุ่ม
+  document.getElementById('btnText').innerText = "กำลังตรวจสอบ...";
+  document.getElementById('btnSpinner').classList.remove('d-none');
+  document.getElementById('loginBtn').disabled = true;
+
+  try {
+    const authResponse = await callApi('getStructuredData', userEmail);
+
+    if (!authResponse || !authResponse.allowed) {
+      showAccessDenied(userEmail);
+      return;
+    }
+
+    document.getElementById('landingPage').style.display = 'none';
+    document.getElementById('mainSystem').style.display = 'block';
+
+    rawData = authResponse.treeData || [];
+    switchTab('overview');
+  } catch (err) {
+    alert("เกิดข้อผิดพลาดในการเชื่อมต่อระบบ: " + err.message);
+  } finally {
+    document.getElementById('btnText').innerText = "เข้าสู่ระบบ \u2192";
+    document.getElementById('btnSpinner').classList.add('d-none');
+    document.getElementById('loginBtn').disabled = false;
+  }
 }
 
 function goToLandingPage() {
@@ -71,11 +70,12 @@ function showAccessDenied(email) {
     <div class="access-denied-box">
       <i class="material-icons text-danger" style="font-size: 64px;">lock_person</i>
       <h4 class="fw-bold text-danger mt-3 mb-2">ไม่มีสิทธิ์เข้าถึงระบบ</h4>
-      <p class="text-muted mb-3">บัญชีของคุณไม่อยู่ในรายชื่อผู้มีสิทธิ์ใช้งานระบบนี้</p>
+      <p class="text-muted mb-3">อีเมลของคุณไม่อยู่ในรายชื่อผู้มีสิทธิ์ใช้งานระบบนี้ (คอลัมน์ K)</p>
       <div class="p-2 bg-light rounded-3 mb-3 border fs-14 text-secondary">
         <strong>อีเมลปัจจุบัน:</strong> ${email || 'ไม่พบบัญชีผู้ใช้'}
       </div>
-      <small class="text-muted">หากต้องการใช้งาน กรุณาติดต่อผู้ดูแลระบบเพื่อเพิ่มรายชื่อ</small>
+      <button class="btn btn-secondary btn-sm mb-3" onclick="goToLandingPage()">ลองใหม่อีกครั้ง</button>
+      <div><small class="text-muted">หากต้องการใช้งาน กรุณาติดต่อผู้ดูแลระบบเพื่อเพิ่มรายชื่อ</small></div>
     </div>
   `;
   document.getElementById('contentArea').innerHTML = html;
@@ -107,7 +107,7 @@ function switchTab(tabName) {
   }
 }
 
-function loadDataList(serverMethodName) {
+async function loadDataList(serverMethodName) {
   document.getElementById('contentArea').innerHTML = `
     <div class="text-center py-5">
       <div class="spinner-border text-primary" role="status"></div>
@@ -115,20 +115,19 @@ function loadDataList(serverMethodName) {
     </div>
   `;
 
-  callApi(serverMethodName)
-    .then(reports => {
-      currentReportList = reports;
-      document.getElementById('searchWrapper').style.display = 'block';
-      document.getElementById('searchInput').value = '';
-      renderSheetView(currentReportList);
-    })
-    .catch(err => {
-      document.getElementById('contentArea').innerHTML = `
-        <div class="alert alert-danger text-center">
-          เกิดข้อผิดพลาดในการโหลดข้อมูล: ${err.message}
-        </div>
-      `;
-    });
+  try {
+    const reports = await callApi(serverMethodName, userEmail);
+    currentReportList = reports;
+    document.getElementById('searchWrapper').style.display = 'block';
+    document.getElementById('searchInput').value = '';
+    renderSheetView(currentReportList);
+  } catch (err) {
+    document.getElementById('contentArea').innerHTML = `
+      <div class="alert alert-danger text-center">
+        เกิดข้อผิดพลาดในการโหลดข้อมูล: ${err.message}
+      </div>
+    `;
+  }
 }
 
 function renderSheetView(list) {
