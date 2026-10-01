@@ -1,327 +1,178 @@
-let currentUserEmail = "";
-let userPermissions = null;
-let rawData = [];
-let currentLevel = 1;
-let selectedMain = null;
-let selectedSub = null;
-let selectedTopic = null;
-let currentReportList = [];
+const API_URL = CONFIG.API_URL;
+let globalList = []; 
+let selectedRowIndex = null;
 
-// ฟังก์ชันเรียก API ด้วย JSONP เพื่อป้องกันปัญหา CORS
-function fetchJSONP(action, params = {}) {
-  return new Promise((resolve, reject) => {
-    const callbackName = 'jsonp_cb_' + Math.round(100000 * Math.random());
-    window[callbackName] = function(data) {
-      delete window[callbackName];
-      document.body.removeChild(script);
-      resolve(data);
-    };
+document.addEventListener("DOMContentLoaded", () => {
+    loadData();
+});
 
-    let url = `${API_URL}?action=${action}&callback=${callbackName}`;
-    for (let key in params) {
-      url += `&${key}=${encodeURIComponent(params[key])}`;
+async function loadData() {
+    try {
+        const response = await fetch(`${API_URL}?action=getData`, {
+            method: 'GET',
+            mode: 'cors',
+            redirect: 'follow' 
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === "success") {
+            globalList = data.list; // เก็บข้อมูลทั้งหมดไว้ทำ Instant Preview
+            renderTable(data.list);
+        } else {
+            console.error("API Error:", data.message);
+            document.getElementById('loading').innerHTML = `<span class="text-danger">เกิดข้อผิดพลาด: ${data.message}</span>`;
+        }
+    } catch (error) {
+        console.error("Fetch Error:", error);
+        document.getElementById('loading').innerHTML = `<span class="text-danger">ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ (CORS / Network Error)</span>`;
+    }
+}
+
+function renderTable(list) {
+    document.getElementById('loading').style.display = 'none';
+    const docList = document.getElementById('docList');
+    docList.style.display = 'flex';
+    docList.innerHTML = "";
+
+    list.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'doc-card';
+        
+        const colC = (item.colC && item.colC !== "undefined") ? item.colC : "-";
+        const colH = (item.colH && item.colH !== "undefined") ? item.colH : "-";
+        const colI = (item.colI && item.colI !== "undefined") ? item.colI : "-";
+
+        card.innerHTML = `
+            <div class="doc-info" style="flex: 1; padding-right: 20px;">
+                <div style="font-size: 1.3rem; font-weight: 600; color: #00246B; margin-bottom: 8px;">
+                    ${item.colA || '-'}
+                </div>
+                
+                <div style="font-size: 1.05rem; line-height: 1.7;">
+                    <div>
+                        <span style="color: #00246B; font-weight: 500;">ผู้กรอกข้อมูล:</span> 
+                        <span style="color: #000000; font-weight: 400;">${colC}</span>
+                    </div>
+                    <div>
+                        <span style="color: #00246B; font-weight: 500;">รหัส-ระเบียบปฏิบัติ:</span> 
+                        <span style="color: #000000; font-weight: 400;">${colH}</span>
+                    </div>
+                    <div>
+                        <span style="color: #00246B; font-weight: 500;">เรื่องที่ดำเนินการ:</span> 
+                        <span style="color: #000000; font-weight: 400;">${colI}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex flex-column align-items-end justify-content-center" style="min-width: 150px;">
+                <button class="btn btn-mahidol px-4 py-2 rounded-pill w-100" onclick="previewPdfInstant(${item.rowIndex})">
+                    ดูตัวอย่าง PDF
+                </button>
+            </div>
+        `;
+        docList.appendChild(card);
+    });
+}
+
+// ฟังก์ชันพรีวิวเอกสารแบบทันที (0 วินาที)
+function previewPdfInstant(rowIndex) {
+    selectedRowIndex = rowIndex;
+    const item = globalList.find(x => x.rowIndex === rowIndex);
+    if (!item) return;
+
+    let rowsHtml = "";
+    if (item.fullRowData && item.fullRowData.length > 0) {
+        item.fullRowData.forEach(row => {
+            rowsHtml += `
+                <tr>
+                    <td style="width: 230px;">${row.label} :</td>
+                    <td>${row.value}</td>
+                </tr>
+            `;
+        });
     }
 
-    const script = document.createElement('script');
-    script.src = url;
-    script.onerror = () => {
-      delete window[callbackName];
-      document.body.removeChild(script);
-      reject(new Error("เกิดข้อผิดพลาดในการเชื่อมต่อระบบ API"));
-    };
-    document.body.appendChild(script);
-  });
+    const previewContainer = document.getElementById('previewContent');
+    previewContainer.innerHTML = `
+        <div style="text-align: center; font-size: 18pt; margin-bottom: 25px; font-weight: normal;">
+            การจัดซื้อจัดจ้างและการควบคุมผู้รับเหมา
+        </div>
+        <table>
+            ${rowsHtml}
+        </table>
+    `;
+
+    const previewModal = new bootstrap.Modal(document.getElementById('pdfPreviewModal'));
+    previewModal.show();
 }
 
-async function triggerLogin() {
-  const emailInput = document.getElementById('loginEmail').value.trim();
-  if (!emailInput) {
-    alert("กรุณากรอกอีเมลของคุณก่อนเข้าสู่ระบบ");
-    return;
-  }
+// ฟังก์ชันสำหรับกดยืนยันเพื่อโหลด PDF จริง
+async function downloadPdfFromPreview() {
+    if (!selectedRowIndex) return;
 
-  currentUserEmail = emailInput.toLowerCase();
-  
-  document.getElementById('btnText').innerText = "กำลังตรวจสอบ...";
-  document.getElementById('btnSpinner').classList.remove('d-none');
-  document.getElementById('loginBtn').disabled = true;
+    const btn = document.getElementById('btnConfirmDownload');
+    const originalText = btn.innerText;
+    btn.disabled = true;
+    btn.innerText = "กำลังสร้างไฟล์ PDF...";
 
-  try {
-    const res = await fetchJSONP('checkUserAccess', { email: currentUserEmail });
-    
-    document.getElementById('btnText').innerText = "เข้าสู่ระบบ →";
-    document.getElementById('btnSpinner').classList.add('d-none');
-    document.getElementById('loginBtn').disabled = false;
+    try {
+        const response = await fetch(`${API_URL}?action=generatePDF&rowIndex=${selectedRowIndex}`, {
+            method: 'GET',
+            mode: 'cors',
+            redirect: 'follow'
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === "success") {
+            const a = document.createElement('a');
+            a.href = data.base64;
+            a.download = data.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } else {
+            alert("เซิร์ฟเวอร์แจ้งข้อผิดพลาด: " + data.message);
+        }
+    } catch (error) {
+        console.error("Download Error:", error);
+        alert("การดาวน์โหลดล้มเหลว กรุณาลองใหม่");
+    } finally {
+        btn.disabled = false;
+        btn.innerText = originalText;
+    }
+}
+// ---- ฟังก์ชันค้นหาเอกสาร ----
+document.addEventListener("DOMContentLoaded", () => {
+    const searchInput = document.getElementById('searchName');
+    const searchBtn = document.getElementById('btnSearch');
 
-    if (!res || !res.allowed) {
-      showAccessDenied(currentUserEmail);
-      return;
+    // ฟังก์ชันสำหรับกรองข้อมูล
+    function filterDocuments() {
+        let searchValue = searchInput.value.toLowerCase().trim();
+        
+        // ค้นหาการ์ดเอกสารทั้งหมดด้วยคลาส .doc-card ที่สร้างใน renderTable()
+        let documentCards = document.querySelectorAll('.doc-card');
+
+        documentCards.forEach(function(card) {
+            let cardText = card.textContent || card.innerText;
+            if (cardText.toLowerCase().includes(searchValue)) {
+                card.style.display = "flex"; // ใช้ flex ตามสไตล์เดิมของการ์ด
+            } else {
+                card.style.display = "none"; 
+            }
+        });
     }
 
-    userPermissions = res;
-    executeLogin();
+    // ทำงานเมื่อคลิกปุ่ม "ค้นหา"
+    searchBtn.addEventListener('click', filterDocuments);
 
-  } catch (err) {
-    alert(err.message);
-    document.getElementById('btnText').innerText = "เข้าสู่ระบบ →";
-    document.getElementById('btnSpinner').classList.add('d-none');
-    document.getElementById('loginBtn').disabled = false;
-  }
-}
-
-function executeLogin() {
-  document.getElementById('landingPage').style.display = 'none';
-  document.getElementById('mainSystem').style.display = 'block';
-  document.getElementById('userRoleBadge').innerText = userPermissions.role || "เจ้าหน้าที่";
-
-  // ใช้หลักการ Show If ควบคุมเมนูSidebar
-  const visibleMenus = userPermissions.visibleMenus || [];
-  const menuMap = {
-    'overview': 'menuOverview',
-    'carpar': 'menuCarPar',
-    'kpi': 'menuKpi',
-    'datainput': 'menuDataInput',
-    'orgdata': 'menuOrgData',
-    'report': 'menuReport'
-  };
-
-  for (let key in menuMap) {
-    const elem = document.getElementById(menuMap[key]);
-    if (elem) {
-      elem.style.display = visibleMenus.includes(key) ? 'flex' : 'none';
-    }
-  }
-
-  switchTab('overview');
-}
-
-function goToLandingPage() {
-  document.getElementById('mainSystem').style.display = 'none';
-  document.getElementById('landingPage').style.display = 'block';
-}
-
-function showAccessDenied(email) {
-  document.getElementById('landingPage').style.display = 'none';
-  document.getElementById('mainSystem').style.display = 'block';
-  
-  let html = `
-    <div class="access-denied-box">
-      <i class="material-icons text-danger" style="font-size: 64px;">lock_person</i>
-      <h4 class="fw-bold text-danger mt-3 mb-2">ไม่มีสิทธิ์เข้าถึงระบบ</h4>
-      <p class="text-muted mb-3">บัญชีของคุณไม่อยู่ในรายชื่อผู้มีสิทธิ์ใช้งานระบบนี้</p>
-      <div class="p-2 bg-light rounded-3 mb-3 border fs-14 text-secondary">
-        <strong>อีเมลปัจจุบัน:</strong> ${email}
-      </div>
-      <button class="btn btn-outline-secondary btn-sm" onclick="goToLandingPage()">กลับไปลองใหม่อีกครั้ง</button>
-    </div>
-  `;
-  document.getElementById('contentArea').innerHTML = html;
-}
-
-async function switchTab(tabName) {
-  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
-  document.getElementById('searchWrapper').style.display = 'none';
-
-  if (tabName === 'overview') {
-    document.getElementById('menuOverview').classList.add('active');
-    document.getElementById('headerSubtitle').innerText = "ศูนย์รวมการจัดการเอกสาร";
-    loadOverviewData();
-  } else if (tabName === 'datainput') {
-    document.getElementById('menuDataInput').classList.add('active');
-    updateHeader("บันทึกข้อมูล ISO", false);
-    loadDataList('getDataInputReports');
-  } else if (tabName === 'orgdata') {
-    document.getElementById('menuOrgData').classList.add('active');
-    updateHeader("ข้อมูลหน่วยงาน", false);
-    loadDataList('getOrgDataReports');
-  } else if (tabName === 'report') {
-    document.getElementById('menuReport').classList.add('active');
-    updateHeader("รายงาน", false);
-    loadDataList('getReportDataReports');
-  }
-}
-
-async function loadOverviewData() {
-  showLoading();
-  try {
-    const res = await fetchJSONP('getStructuredData', { email: currentUserEmail });
-    rawData = res.treeData || [];
-    renderMainPage();
-  } catch (err) {
-    showError(err.message);
-  }
-}
-
-async function loadDataList(actionName) {
-  showLoading();
-  try {
-    const reports = await fetchJSONP(actionName, { email: currentUserEmail });
-    currentReportList = reports || [];
-    document.getElementById('searchWrapper').style.display = 'block';
-    document.getElementById('searchInput').value = '';
-    renderSheetView(currentReportList);
-  } catch (err) {
-    showError(err.message);
-  }
-}
-
-function renderMainPage() {
-  currentLevel = 1;
-  updateHeader("หมวดหมู่หลัก", false);
-  
-  let html = '<div class="app-grid">';
-  rawData.forEach((main, index) => {
-    html += `
-      <div class="app-card" onclick="selectMain(${index})">
-        <div class="icon-box bg-lvl-1 mb-2">
-          <i class="material-icons">grid_view</i>
-        </div>
-        <div class="fw-medium fs-14 text-dark">${main.title}</div>
-      </div>
-    `;
-  });
-  html += '</div>';
-  document.getElementById('contentArea').innerHTML = html;
-}
-
-function selectMain(index) {
-  selectedMain = rawData[index];
-  if (!selectedMain.subs || selectedMain.subs.length === 0) {
-    openLink(selectedMain.link);
-    return;
-  }
-  currentLevel = 2;
-  updateHeader(selectedMain.title, true);
-
-  let html = '<div class="app-grid">';
-  selectedMain.subs.forEach((sub, subIdx) => {
-    html += `
-      <div class="app-card" onclick="selectSub(${subIdx})">
-        <div class="icon-box bg-lvl-2 mb-2">
-          <i class="material-icons">folder_special</i>
-        </div>
-        <div class="fw-medium fs-14 text-dark">${sub.title}</div>
-      </div>
-    `;
-  });
-  html += '</div>';
-  document.getElementById('contentArea').innerHTML = html;
-}
-
-function selectSub(subIdx) {
-  selectedSub = selectedMain.subs[subIdx];
-  if (!selectedSub.topics || selectedSub.topics.length === 0) {
-    openLink(selectedSub.link);
-    return;
-  }
-  currentLevel = 3;
-  updateHeader(selectedSub.title, true);
-
-  let html = '<div class="app-grid">';
-  selectedSub.topics.forEach((topic, topicIdx) => {
-    html += `
-      <div class="app-card" onclick="selectTopic(${topicIdx})">
-        <div class="icon-box bg-lvl-3 mb-2">
-          <i class="material-icons">folder</i>
-        </div>
-        <div class="fw-medium fs-14 text-dark">${topic.title}</div>
-      </div>
-    `;
-  });
-  html += '</div>';
-  document.getElementById('contentArea').innerHTML = html;
-}
-
-function selectTopic(topicIdx) {
-  selectedTopic = selectedSub.topics[topicIdx];
-  if (!selectedTopic.tasks || selectedTopic.tasks.length === 0) {
-    openLink(selectedTopic.link);
-    return;
-  }
-  currentLevel = 4;
-  updateHeader(selectedTopic.title, true);
-
-  let html = '<div class="app-grid">';
-  selectedTopic.tasks.forEach(task => {
-    html += `
-      <div class="app-card" onclick="openLink('${task.link}')">
-        <div class="icon-box bg-lvl-4 mb-2">
-          <i class="material-icons">folder_open</i>
-        </div>
-        <div class="fw-medium fs-14 text-dark">${task.title}</div>
-      </div>
-    `;
-  });
-  html += '</div>';
-  document.getElementById('contentArea').innerHTML = html;
-}
-
-function renderSheetView(list) {
-  if (!list || list.length === 0) {
-    document.getElementById('contentArea').innerHTML = `
-      <div class="text-center py-5 text-muted">
-        <i class="material-icons fs-1">find_in_page</i>
-        <p class="mt-2">ไม่พบรายการข้อมูลที่คุณมีสิทธิ์เข้าถึง</p>
-      </div>
-    `;
-    return;
-  }
-
-  let html = '<div class="app-horizontal-list">';
-  list.forEach(item => {
-    html += `
-      <div class="app-card-horizontal" onclick="openLink('${item.link}')">
-        <div class="d-flex align-items-center gap-3">
-          <div class="icon-box bg-report">
-            <i class="material-icons text-primary">assignment</i>
-          </div>
-          <div class="fw-medium fs-14 text-dark">${item.title}</div>
-        </div>
-        <i class="material-icons text-muted fs-5">chevron_right</i>
-      </div>
-    `;
-  });
-  html += '</div>';
-
-  document.getElementById('contentArea').innerHTML = html;
-}
-
-function filterReports() {
-  let query = document.getElementById('searchInput').value.toLowerCase().trim();
-  let filtered = currentReportList.filter(item => item.title.toLowerCase().includes(query));
-  renderSheetView(filtered);
-}
-
-function openLink(url) {
-  if (url && url !== "") {
-    window.open(url, '_blank');
-  } else {
-    alert("ไม่พบลิงก์สำหรับรายการนี้");
-  }
-}
-
-function goBack() {
-  if (currentLevel === 4) selectSub(selectedMain.subs.indexOf(selectedSub));
-  else if (currentLevel === 3) selectMain(rawData.indexOf(selectedMain));
-  else if (currentLevel === 2) renderMainPage();
-}
-
-function updateHeader(title, showBack) {
-  document.getElementById('headerTitle').innerText = title;
-  document.getElementById('backBtn').style.display = showBack ? 'inline-flex' : 'none';
-}
-
-function showLoading() {
-  document.getElementById('contentArea').innerHTML = `
-    <div class="text-center py-5">
-      <div class="spinner-border text-primary" role="status"></div>
-      <p class="mt-3 text-muted">กำลังโหลดข้อมูล...</p>
-    </div>
-  `;
-}
-
-function showError(msg) {
-  document.getElementById('contentArea').innerHTML = `
-    <div class="alert alert-danger text-center my-4">${msg}</div>
-  `;
-}
+    // ทำงานเมื่อกดปุ่ม Enter ในช่องพิมพ์
+    searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault(); 
+            filterDocuments();
+        }
+    });
+});

@@ -1,2 +1,4 @@
-// ใส่ Web App URL ที่ได้จากการ Deploy ใน Google Apps Script
-const API_URL = "https://script.google.com/macros/s/AKfycbwzpti8luQYXgCWrEuAgAItfAr2_DmCdizsuyODjGPjug1TKXvLsmBlzc4j4Xam-qxoLg/exec";
+const CONFIG = {
+    // เอาลิงก์ Web app URL ที่ลงท้ายด้วย /exec มาวางที่นี่
+    API_URL: "https://script.google.com/macros/s/AKfycbwt87s_QtHxPHQal6ILe_qrkSn16j5D2a-bgZ2riGDOhYscJCj1JUswIuUKCaLKHE3QAw/exec"
+};
